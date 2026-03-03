@@ -1,0 +1,375 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Calles Inundadas en Tucumán</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        :root {
+            --primary-color: #0056b3;
+            --danger-color: #dc3545;
+            --warning-color: #ffc107;
+            --bg-color: #f4f7f6;
+            --text-color: #333;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 15px 20px;
+            text-align: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+
+        header h1 { margin: 0; font-size: 1.5rem; }
+
+        .container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .sidebar {
+            width: 320px;
+            background-color: white;
+            padding: 20px;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            overflow-y: auto;
+            z-index: 1000;
+        }
+
+        #map { flex: 1; height: 100%; z-index: 1; }
+
+        /* Clima y Rutas */
+        .weather-card, .route-card {
+            background-color: #e0f7fa;
+            border: 1px solid #b2ebf2;
+            border-radius: 5px;
+            padding: 10px;
+            font-size: 0.95rem;
+        }
+        .route-card { background-color: #f8f9fa; border: 1px solid #dee2e6; }
+        .route-card input { width: 100%; padding: 8px; margin: 5px 0; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;}
+
+        /* Cartel de instrucción */
+        #instruccion-mapa {
+            display: none;
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: var(--warning-color);
+            color: #000;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 1rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            z-index: 2000;
+            border: 2px solid #333;
+            pointer-events: none;
+            width: 80%;
+            text-align: center;
+            max-width: 400px;
+        }
+
+        /* Botón de Mi Ubicación */
+        .btn-location {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background-color: white;
+            border: 2px solid rgba(0,0,0,0.2);
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Botones generales */
+        button, .btn-link {
+            width: 100%;
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            transition: background 0.3s;
+            box-sizing: border-box;
+            margin-bottom: 5px;
+        }
+
+        .btn-primary { background-color: var(--primary-color); color: white; }
+        .btn-primary:hover { background-color: #004494; }
+        .btn-danger { background-color: var(--danger-color); color: white; }
+        .btn-danger:hover { background-color: #c82333; }
+        .btn-warning { background-color: var(--warning-color); color: #333; }
+        .btn-warning:hover { background-color: #e0a800; }
+        .btn-download { background-color: #28a745; color: white; margin-bottom: 0; }
+        .btn-download:hover { background-color: #218838; }
+        .btn-dark { background-color: #343a40; color: white; }
+
+        .sub-options {
+            display: none;
+            flex-direction: column;
+            gap: 5px;
+            margin-top: 5px;
+            padding-left: 10px;
+            border-left: 3px solid var(--danger-color);
+        }
+
+        .sub-options button { background-color: #f8d7da; color: #721c24; font-size: 0.9rem; padding: 8px; }
+
+        .card { background: #fff; border: 1px solid #ddd; border-radius: 5px; padding: 15px; text-align: center; }
+
+        /* Ventanas Modales */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 3000;
+            left: 0; top: 0; width: 100%; height: 100%;
+            background-color: rgba(0,0,0,0.7);
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+            position: relative;
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 10px; right: 15px;
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .close-btn:hover { color: #000; }
+
+        /* Adaptación a celulares */
+        @media (max-width: 768px) {
+            .container { flex-direction: column; }
+            .sidebar { width: 100%; box-sizing: border-box; order: 2; height: 50vh; box-shadow: 0 -2px 5px rgba(0,0,0,0.1); }
+            #map { order: 1; height: 50vh; }
+            .btn-location { bottom: 10px; right: 10px; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Calles Inundadas - Tucumán</h1>
+    </header>
+
+    <div class="container">
+        <div id="instruccion-mapa">Tocá en el mapa para ubicar el reporte</div>
+        
+        <button class="btn-location" onclick="ubicarUsuario()" title="Mi ubicación">📍</button>
+
+        <aside class="sidebar">
+            
+            <button class="btn-link btn-download" onclick="abrirModal('modal-descarga')">⬇️ Descargar la App</button>
+
+            <div class="route-card">
+                <h4 style="margin: 0 0 10px 0;">🗺️ Calcular Ruta Segura</h4>
+                <input type="text" id="input-origen" placeholder="Punto de Salida (Ej: Plaza Independencia)">
+                <input type="text" id="input-destino" placeholder="Punto de Llegada (Ej: Terminal)">
+                <button class="btn-primary" style="margin-top: 5px;" onclick="calcularRutaExterna()">Buscar Ruta en Maps</button>
+            </div>
+
+            <div class="weather-card" id="clima-info">
+                ⏳ Cargando clima actual en Tucumán...
+            </div>
+            <button class="btn-dark" onclick="abrirModal('modal-windy')">🌦️ Ver Radar Animado (Windy)</button>
+
+            <div class="report-section">
+                <h3 style="margin-top: 10px; margin-bottom: 5px;">Reportar Incidente</h3>
+                <p style="font-size: 0.85rem; color: #666; margin-top: 0;">Seleccioná el problema y tocá el mapa.</p>
+                
+                <button class="btn-danger" onclick="toggleInundaciones()">🌊 Inundaciones</button>
+                <div class="sub-options" id="inundaciones-options">
+                    <button onclick="prepararReporte('Inundación: Poca', '#ff9999')">Poca</button>
+                    <button onclick="prepararReporte('Inundación: Hasta los zapatos', '#ff4d4d')">Hasta los zapatos</button>
+                    <button onclick="prepararReporte('Inundación: Hasta los tobillos', '#cc0000')">Hasta los tobillos</button>
+                    <button onclick="prepararReporte('Inundación: Hasta las rodillas', '#660000')">Hasta las rodillas</button>
+                </div>
+                
+                <button class="btn-warning" style="margin-top: 10px;" onclick="prepararReporte('Pozo', '#ff9900')">🕳️ Pozos</button>
+            </div>
+
+            <div class="card">
+                <h3 style="margin-top: 0;">Ayudanos a mantener el servidor</h3>
+                <button class="btn-primary" onclick="abrirModal('modal-donar')" style="margin-bottom: 0;">☕ Donar por MercadoPago</button>
+            </div>
+        </aside>
+
+        <main id="map"></main>
+    </div>
+
+    <div id="modal-descarga" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="cerrarModal('modal-descarga')">&times;</span>
+            <h2>Descargar Aplicación</h2>
+            <p>Obtené nuestra app oficial para Android y recibí alertas al instante.</p>
+            <a href="https://play.google.com/store/apps/TU_APP" target="_blank" class="btn-link btn-download" style="margin-top: 15px;">Descargar APK / Play Store</a>
+        </div>
+    </div>
+
+    <div id="modal-donar" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="cerrarModal('modal-donar')">&times;</span>
+            <h2>Apoyá nuestro proyecto</h2>
+            <p>Tu donación nos ayuda a pagar los servidores y mantener el mapa en línea para todo Tucumán.</p>
+            <a href="https://link.mercadopago.com.ar/TULINKACA" target="_blank" class="btn-link btn-primary" style="margin-top: 15px;">Pagar con Mercado Pago</a>
+        </div>
+    </div>
+
+    <div id="modal-windy" class="modal">
+        <div class="modal-content" style="width: 95%; max-width: 800px; height: 80vh;">
+            <span class="close-btn" onclick="cerrarModal('modal-windy')">&times;</span>
+            <h2 style="margin-top: 0; margin-bottom: 10px; font-size: 1.2rem;">Radar en vivo - Tucumán</h2>
+            <iframe width="100%" height="85%" src="https://embed.windy.com/embed.html?type=map&location=coordinates&metricRain=mm&metricTemp=°C&metricWind=km/h&zoom=11&overlay=rain&product=ecmwf&level=surface&lat=-26.8241&lon=-65.2226" frameborder="0" style="border-radius: 8px;"></iframe>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // 1. Inicializar el mapa
+        const map = L.map('map').setView([-26.8241, -65.2226], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
+
+        // 2. Funciones para los Modales (Ventanas)
+        function abrirModal(id) {
+            document.getElementById(id).style.display = 'flex';
+        }
+        function cerrarModal(id) {
+            document.getElementById(id).style.display = 'none';
+        }
+
+        // 3. Funciones del Reporte en el Mapa
+        let reportePendiente = null;
+        let colorPendiente = null;
+        const cartelInstruccion = document.getElementById('instruccion-mapa');
+
+        function toggleInundaciones() {
+            const options = document.getElementById('inundaciones-options');
+            options.style.display = options.style.display === 'flex' ? 'none' : 'flex';
+        }
+
+        function prepararReporte(tipoReporte, color) {
+            reportePendiente = tipoReporte;
+            colorPendiente = color;
+            cartelInstruccion.innerText = `Tocá en el mapa para marcar: ${tipoReporte}`;
+            cartelInstruccion.style.display = 'block';
+            document.getElementById('map').style.cursor = 'crosshair';
+            document.getElementById('inundaciones-options').style.display = 'none';
+        }
+
+        map.on('click', function(e) {
+            if (reportePendiente !== null) {
+                const lat = e.latlng.lat;
+                const lng = e.latlng.lng;
+                
+                L.circle([lat, lng], {
+                    color: colorPendiente, fillColor: colorPendiente, fillOpacity: 0.7, radius: 50
+                }).addTo(map)
+                .bindPopup(`<b>¡Alerta!</b><br>${reportePendiente}<br>Evitar la zona.`)
+                .openPopup();
+
+                reportePendiente = null;
+                colorPendiente = null;
+                cartelInstruccion.style.display = 'none';
+                document.getElementById('map').style.cursor = '';
+            }
+        });
+
+        // 4. Función de "Mi Ubicación"
+        function ubicarUsuario() {
+            map.locate({setView: true, maxZoom: 16});
+        }
+        map.on('locationfound', function(e) {
+            L.circleMarker(e.latlng, {
+                radius: 8, fillColor: "#007bff", color: "#fff", weight: 2, fillOpacity: 1
+            }).addTo(map).bindPopup("Estás aquí").openPopup();
+        });
+        map.on('locationerror', function(e) {
+            alert("No pudimos obtener tu ubicación. Asegurate de tener el GPS activado.");
+        });
+
+        // 5. Clima en tiempo real (Viento y Lluvia)
+        async function cargarClima() {
+            try {
+                const url = "https://api.open-meteo.com/v1/forecast?latitude=-26.8241&longitude=-65.2226&current=rain,wind_speed_10m&timezone=America%2FSao_Paulo";
+                const respuesta = await fetch(url);
+                const datos = await respuesta.json();
+                
+                const lluvia = datos.current.rain;
+                const viento = datos.current.wind_speed_10m;
+                let mensajeLluvia = lluvia > 0 ? `🌧️ Lluvia: ${lluvia} mm` : "☁️ Sin lluvias ahora";
+                
+                document.getElementById('clima-info').innerHTML = `
+                    <b>Estado del clima actual:</b><br>
+                    ${mensajeLluvia} | 💨 Viento: ${viento} km/h
+                `;
+            } catch (error) {
+                document.getElementById('clima-info').innerHTML = "No se pudo cargar el clima.";
+            }
+        }
+        cargarClima();
+
+        // 6. Función para derivar el ruteo a Google Maps
+        function calcularRutaExterna() {
+            const origen = document.getElementById('input-origen').value;
+            const destino = document.getElementById('input-destino').value;
+
+            if (origen.trim() === "" || destino.trim() === "") {
+                alert("Por favor, ingresá un punto de salida y uno de llegada.");
+                return;
+            }
+
+            // Usamos la URL oficial de Google Maps Directions
+            const url = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origen + ', Tucumán, Argentina')}&destination=${encodeURIComponent(destino + ', Tucumán, Argentina')}`;
+            window.open(url, '_blank');
+        }
+
+    </script>
+</body>
+</html>
